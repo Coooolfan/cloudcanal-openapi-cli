@@ -19,6 +19,8 @@ cloudcanal --help
 cloudcanal jobs --help
 cloudcanal config profiles list
 cloudcanal config profiles use dev
+cloudcanal config init --api-host https://cc.example.com --ak your-ak --sk your-sk
+cloudcanal config profiles add test --api-host https://cc.example.com --ak test-ak --sk test-sk
 cloudcanal jobs list
 cloudcanal jobs create --body-file create-job.json
 cloudcanal datasources list --type MYSQL
@@ -147,9 +149,11 @@ cloudcanal config --help
 
 显示当前配置，`accessKey` 会做掩码处理，同时会显示当前 `currentProfile` 和全局 `language`。
 
-`config init`
+`config init [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]`
 
 重新执行当前 profile 的初始化向导，更新配置。
+
+如果传入 `--api-host`、`--ak`、`--sk` 三要素，则以非交互方式更新当前 profile。只要传入其中任意一个参数，三项都必须提供；保存前仍会校验连接。
 
 `config profiles list`
 
@@ -159,9 +163,11 @@ cloudcanal config --help
 
 切换当前 profile。
 
-`config profiles add <name>`
+`config profiles add <name> [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]`
 
 新增 profile，并立即进入初始化向导。
+
+如果传入 `--api-host`、`--ak`、`--sk` 三要素，则以非交互方式新增 profile。只要传入其中任意一个参数，三项都必须提供；保存前仍会校验连接。
 
 `config profiles remove <name>`
 

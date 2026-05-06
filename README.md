@@ -38,9 +38,10 @@ cloudcanal version
 cloudcanal --version
 cloudcanal --help
 cloudcanal jobs --help
+cloudcanal config init --api-host https://cc.example.com --ak your-ak --sk your-sk
 cloudcanal config profiles list
 cloudcanal config profiles use dev
-cloudcanal config profiles add test
+cloudcanal config profiles add test --api-host https://cc.example.com --ak test-ak --sk test-sk
 cloudcanal config lang set zh
 cloudcanal jobs list
 cloudcanal jobs show 123

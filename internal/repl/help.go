@@ -61,7 +61,7 @@ CloudCanal CLI 帮助
   schemas list-trans-objs-by-meta 查看映射对象
   version           查看当前版本信息
   config show       查看当前配置
-  config init       重新执行初始化向导
+  config init       重新执行初始化向导，可传 --api-host/--ak/--sk 非交互配置
   config profiles list 查看所有 profile
   config profiles use dev 切换当前 profile
   config lang show  查看当前语言
@@ -104,7 +104,7 @@ Common commands:
   schemas list-trans-objs-by-meta List transfer objects by metadata
   version           Show build version information
   config show       Show current config
-  config init       Re-run the initialization wizard
+  config init       Re-run the wizard, or pass --api-host/--ak/--sk non-interactively
   config profiles list List configured profiles
   config profiles use dev Switch the active profile
   config lang show  Show current language
@@ -444,8 +444,9 @@ config 命令
 config show
   查看当前配置，包括 currentProfile、apiBaseUrl、accessKey 掩码和当前 language。
 
-config init
+config init [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]
   重新进入当前 profile 的初始化向导，更新 API 地址和密钥。
+  也可以传入三要素参数进行非交互式初始化；只要传入其中任意一个参数，三项都必须提供。
 
 config profiles list
   查看所有 profile，并标记当前正在使用的环境。
@@ -453,8 +454,9 @@ config profiles list
 config profiles use <name>
   切换当前 profile。
 
-config profiles add <name>
+config profiles add <name> [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]
   新增 profile，并立即进入初始化向导。
+  也可以传入三要素参数进行非交互式添加；只要传入其中任意一个参数，三项都必须提供。
 
 config profiles remove <name>
   删除非当前 profile。
@@ -473,8 +475,9 @@ config commands
 config show
   Show current config, including currentProfile, apiBaseUrl, masked accessKey, and current language.
 
-config init
+config init [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]
   Re-run the initialization wizard for the active profile to update API URL and credentials.
+  You can also pass all three credential flags for non-interactive initialization.
 
 config profiles list
   List all profiles and mark the active one.
@@ -482,8 +485,9 @@ config profiles list
 config profiles use <name>
   Switch the active profile.
 
-config profiles add <name>
+config profiles add <name> [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]
   Add a profile and open the initialization wizard immediately.
+  You can also pass all three credential flags for non-interactive profile creation.
 
 config profiles remove <name>
   Remove a non-active profile.
@@ -507,8 +511,9 @@ config profiles list
 config profiles use <name>
   切换当前 profile。
 
-config profiles add <name>
+config profiles add <name> [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]
   新增 profile，并立即进入初始化向导。
+  也可以传入三要素参数进行非交互式添加；只要传入其中任意一个参数，三项都必须提供。
 
 config profiles remove <name>
   删除非当前 profile。
@@ -524,8 +529,9 @@ config profiles list
 config profiles use <name>
   Switch the active profile.
 
-config profiles add <name>
+config profiles add <name> [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]
   Add a profile and open the initialization wizard immediately.
+  You can also pass all three credential flags for non-interactive profile creation.
 
 config profiles remove <name>
   Remove a non-active profile.

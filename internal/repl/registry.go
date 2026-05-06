@@ -121,7 +121,7 @@ var (
 			usage:         (*Shell).usageConfig,
 			children: []*commandSpec{
 				{name: "show", visible: true, usage: (*Shell).usageConfigShow},
-				{name: "init", visible: true, usage: (*Shell).usageConfigInit},
+				{name: "init", visible: true, usage: (*Shell).usageConfigInit, flags: configCredentialFlagSpecs()},
 				newProfilesCommand(),
 				newLanguageCommand("lang", true),
 			},
@@ -182,10 +182,14 @@ func newProfilesCommand() *commandSpec {
 		children: []*commandSpec{
 			{name: "list", visible: true, usage: (*Shell).usageConfigProfiles},
 			{name: "use", visible: true, usage: (*Shell).usageConfigProfiles},
-			{name: "add", visible: true, usage: (*Shell).usageConfigProfiles},
+			{name: "add", visible: true, usage: (*Shell).usageConfigProfiles, flags: configCredentialFlagSpecs()},
 			{name: "remove", visible: true, usage: (*Shell).usageConfigProfiles},
 		},
 	}
+}
+
+func configCredentialFlagSpecs() []flagSpec {
+	return []flagSpec{{name: "--api-host"}, {name: "--ak"}, {name: "--sk"}}
 }
 
 func init() {

@@ -41,6 +41,8 @@ func TestCompletionCandidatesSuggestCommandsFlagsAndValues(t *testing.T) {
 		{name: "config subcommand", args: []string{"config", "la"}, want: []string{"lang"}},
 		{name: "config profile group", args: []string{"config", "pr"}, want: []string{"profiles"}},
 		{name: "config profile subcommand", args: []string{"config", "profiles", ""}, want: []string{"add", "list", "remove", "use"}},
+		{name: "config init credential flags", args: []string{"config", "init", "--a"}, want: []string{"--api-host", "--ak"}},
+		{name: "config profile add credential flags", args: []string{"config", "profiles", "add", "prod", "--s"}, want: []string{"--sk"}},
 		{name: "config lang value", args: []string{"config", "lang", "set", ""}, want: []string{"en", "zh"}},
 		{name: "jobs subcommand", args: []string{"jobs", "re"}, want: []string{"replay"}},
 		{name: "job-config alias path", args: []string{"jobconfig", "sp"}, want: []string{"specs"}},

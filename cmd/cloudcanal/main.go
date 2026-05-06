@@ -34,7 +34,13 @@ func main() {
 	}
 
 	runtime := app.NewRuntime(configService)
-	ok, err := runtime.InitializeIfNeeded(io)
+	ok := true
+	var err error
+	if isNonInteractiveConfigSetupCommand(os.Args[1:]) {
+		err = runtime.InitializeIfConfigured()
+	} else {
+		ok, err = runtime.InitializeIfNeeded(io)
+	}
 	if err != nil {
 		io.Println(i18n.T("common.fatalErrorPrefix", err.Error()))
 		os.Exit(1)
@@ -59,6 +65,36 @@ func main() {
 		shell.PrintFatalError(err)
 		os.Exit(1)
 	}
+}
+
+func isNonInteractiveConfigSetupCommand(args []string) bool {
+	filtered, _, err := extractOutputFormat(args)
+	if err != nil || len(filtered) == 0 {
+		return false
+	}
+	if !strings.EqualFold(filtered[0], "config") {
+		return false
+	}
+	switch {
+	case len(filtered) >= 2 && strings.EqualFold(filtered[1], "init"):
+		return containsConfigCredentialFlag(filtered[2:])
+	case len(filtered) >= 4 && strings.EqualFold(filtered[1], "profiles") && strings.EqualFold(filtered[2], "add"):
+		return containsConfigCredentialFlag(filtered[4:])
+	default:
+		return false
+	}
+}
+
+func containsConfigCredentialFlag(args []string) bool {
+	for _, arg := range args {
+		switch {
+		case arg == "--api-host" || arg == "--ak" || arg == "--sk":
+			return true
+		case strings.HasPrefix(arg, "--api-host=") || strings.HasPrefix(arg, "--ak=") || strings.HasPrefix(arg, "--sk="):
+			return true
+		}
+	}
+	return false
 }
 
 func handleEarlyCommands(args []string) (bool, int) {

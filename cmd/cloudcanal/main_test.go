@@ -90,6 +90,30 @@ func TestCommandContextLine(t *testing.T) {
 	}
 }
 
+func TestNonInteractiveConfigSetupCommandDetection(t *testing.T) {
+	testCases := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{name: "config init flags", args: []string{"config", "init", "--api-host", "https://cc.example.com"}, want: true},
+		{name: "config init inline flags", args: []string{"config", "init", "--api-host=https://cc.example.com"}, want: true},
+		{name: "config init json output", args: []string{"config", "init", "--api-host", "https://cc.example.com", "--output", "json"}, want: true},
+		{name: "profiles add flags", args: []string{"config", "profiles", "add", "prod", "--ak", "test-ak"}, want: true},
+		{name: "config init interactive", args: []string{"config", "init"}, want: false},
+		{name: "profiles add interactive", args: []string{"config", "profiles", "add", "prod"}, want: false},
+		{name: "unrelated command", args: []string{"jobs", "list", "--api-host", "https://cc.example.com"}, want: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isNonInteractiveConfigSetupCommand(tc.args); got != tc.want {
+				t.Fatalf("isNonInteractiveConfigSetupCommand(%v) = %v, want %v", tc.args, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestStartupUpdateLines(t *testing.T) {
 	originalLanguage := i18n.CurrentLanguage()
 	t.Cleanup(func() {

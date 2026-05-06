@@ -141,11 +141,20 @@ func (s *Shell) runConfigShow(tokens []string) error {
 }
 
 func (s *Shell) runConfigInit(tokens []string) error {
-	if len(tokens) != 2 {
+	cfg, nonInteractive, err := parseConfigCredentialOptions(tokens, 2)
+	if err != nil {
+		return err
+	}
+	if !nonInteractive && len(tokens) != 2 {
 		s.io.Println(s.usageConfigInit())
 		return nil
 	}
-	updated, err := s.runtime.Reinitialize(s.io)
+	var updated bool
+	if nonInteractive {
+		updated, err = s.runtime.ReinitializeWithConfig(cfg)
+	} else {
+		updated, err = s.runtime.Reinitialize(s.io)
+	}
 	if err != nil {
 		return err
 	}
@@ -238,13 +247,26 @@ func (s *Shell) runProfilesUse(tokens []string) error {
 }
 
 func (s *Shell) runProfilesAdd(tokens []string) error {
-	if len(tokens) != 4 {
+	if len(tokens) < 4 {
 		s.io.Println(s.usageConfigProfiles())
 		return nil
 	}
 
 	name := config.NormalizeProfileName(tokens[3])
-	added, err := s.runtime.AddProfile(name, s.io)
+	cfg, nonInteractive, err := parseConfigCredentialOptions(tokens, 4)
+	if err != nil {
+		return err
+	}
+	if !nonInteractive && len(tokens) != 4 {
+		s.io.Println(s.usageConfigProfiles())
+		return nil
+	}
+	var added bool
+	if nonInteractive {
+		added, err = s.runtime.AddProfileWithConfig(name, cfg)
+	} else {
+		added, err = s.runtime.AddProfile(name, s.io)
+	}
 	if err != nil {
 		return err
 	}
@@ -259,6 +281,48 @@ func (s *Shell) runProfilesAdd(tokens []string) error {
 	}
 	s.io.Println(s.profileAddedMessage(name))
 	return nil
+}
+
+func parseConfigCredentialOptions(tokens []string, start int) (config.AppConfig, bool, error) {
+	if len(tokens) == start {
+		return config.AppConfig{}, false, nil
+	}
+	if len(tokens) < start {
+		return config.AppConfig{}, false, nil
+	}
+
+	options, err := parseFlagArgs(tokens[start:])
+	if err != nil {
+		return config.AppConfig{}, false, err
+	}
+	_, hasAPIHost := options["api-host"]
+	_, hasAK := options["ak"]
+	_, hasSK := options["sk"]
+	nonInteractive := hasAPIHost || hasAK || hasSK
+	if !nonInteractive {
+		return config.AppConfig{}, false, ensureNoUnknownOptions(options)
+	}
+
+	apiHost, err := parseRequiredStringOption(options, "api-host", "api-host")
+	if err != nil {
+		return config.AppConfig{}, false, err
+	}
+	accessKey, err := parseRequiredStringOption(options, "ak", "ak")
+	if err != nil {
+		return config.AppConfig{}, false, err
+	}
+	secretKey, err := parseRequiredStringOption(options, "sk", "sk")
+	if err != nil {
+		return config.AppConfig{}, false, err
+	}
+	if err := ensureNoUnknownOptions(options); err != nil {
+		return config.AppConfig{}, false, err
+	}
+	return config.AppConfig{
+		APIBaseURL: strings.TrimSpace(apiHost),
+		AccessKey:  strings.TrimSpace(accessKey),
+		SecretKey:  strings.TrimSpace(secretKey),
+	}, true, nil
 }
 
 func (s *Shell) runProfilesRemove(tokens []string) error {

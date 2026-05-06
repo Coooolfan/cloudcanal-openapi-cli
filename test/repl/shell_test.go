@@ -357,6 +357,98 @@ func TestShellExecutesArgsWithoutInteractiveLoop(t *testing.T) {
 	}
 }
 
+func TestShellConfigInitSupportsNonInteractiveCredentials(t *testing.T) {
+	runtime := &fakeRuntime{
+		cfg:                 config.AppConfig{APIBaseURL: "https://old.example.com", AccessKey: "old-ak", SecretKey: "old-sk"},
+		dataJobs:            &fakeDataJobs{},
+		dataSources:         &fakeDataSources{},
+		clusters:            &fakeClusters{},
+		workers:             &fakeWorkers{},
+		consoleJobs:         &fakeConsoleJobs{},
+		jobConfigs:          &fakeJobConfigs{},
+		reinitializeValue:   true,
+		reinitializeWithSet: true,
+	}
+	io := testsupport.NewTestConsole()
+
+	shell := repl.NewShell(io, runtime)
+	err := shell.ExecuteArgs([]string{"config", "init", "--api-host", "https://cc.example.com", "--ak", "test-ak", "--sk", "test-sk"})
+	if err != nil {
+		t.Fatalf("ExecuteArgs(config init flags) error = %v", err)
+	}
+
+	if runtime.reinitializeCalls != 0 {
+		t.Fatalf("reinitializeCalls = %d, want 0", runtime.reinitializeCalls)
+	}
+	if runtime.reinitializeWithCalls != 1 {
+		t.Fatalf("reinitializeWithCalls = %d, want 1", runtime.reinitializeWithCalls)
+	}
+	if runtime.lastReinitializeConfig.APIBaseURL != "https://cc.example.com" || runtime.lastReinitializeConfig.AccessKey != "test-ak" || runtime.lastReinitializeConfig.SecretKey != "test-sk" {
+		t.Fatalf("lastReinitializeConfig = %+v", runtime.lastReinitializeConfig)
+	}
+	if !strings.Contains(io.Output(), "Configuration updated.") {
+		t.Fatalf("output = %q, want config updated message", io.Output())
+	}
+}
+
+func TestShellProfilesAddSupportsNonInteractiveCredentials(t *testing.T) {
+	runtime := &fakeRuntime{
+		cfg:              config.AppConfig{APIBaseURL: "https://cc.example.com", AccessKey: "ak", SecretKey: "sk"},
+		dataJobs:         &fakeDataJobs{},
+		dataSources:      &fakeDataSources{},
+		clusters:         &fakeClusters{},
+		workers:          &fakeWorkers{},
+		consoleJobs:      &fakeConsoleJobs{},
+		jobConfigs:       &fakeJobConfigs{},
+		addWithConfigSet: true,
+	}
+	io := testsupport.NewTestConsole()
+
+	shell := repl.NewShell(io, runtime)
+	err := shell.ExecuteArgs([]string{"config", "profiles", "add", "prod", "--api-host=https://prod.example.com", "--ak", "prod-ak", "--sk", "prod-sk"})
+	if err != nil {
+		t.Fatalf("ExecuteArgs(config profiles add flags) error = %v", err)
+	}
+
+	if runtime.lastAddProfileName != "prod" {
+		t.Fatalf("lastAddProfileName = %q, want prod", runtime.lastAddProfileName)
+	}
+	if runtime.addProfileWithConfigCalls != 1 {
+		t.Fatalf("addProfileWithConfigCalls = %d, want 1", runtime.addProfileWithConfigCalls)
+	}
+	if runtime.lastAddProfileConfig.APIBaseURL != "https://prod.example.com" || runtime.lastAddProfileConfig.AccessKey != "prod-ak" || runtime.lastAddProfileConfig.SecretKey != "prod-sk" {
+		t.Fatalf("lastAddProfileConfig = %+v", runtime.lastAddProfileConfig)
+	}
+	if !strings.Contains(io.Output(), "Profile prod added.") {
+		t.Fatalf("output = %q, want profile added message", io.Output())
+	}
+}
+
+func TestShellConfigCredentialsRequireAllValues(t *testing.T) {
+	runtime := &fakeRuntime{
+		cfg:         config.AppConfig{APIBaseURL: "https://cc.example.com", AccessKey: "ak", SecretKey: "sk"},
+		dataJobs:    &fakeDataJobs{},
+		dataSources: &fakeDataSources{},
+		clusters:    &fakeClusters{},
+		workers:     &fakeWorkers{},
+		consoleJobs: &fakeConsoleJobs{},
+		jobConfigs:  &fakeJobConfigs{},
+	}
+	io := testsupport.NewTestConsole()
+
+	shell := repl.NewShell(io, runtime)
+	err := shell.ExecuteArgs([]string{"config", "init", "--api-host", "https://cc.example.com", "--ak", "test-ak"})
+	if err == nil {
+		t.Fatal("ExecuteArgs(config init partial flags) error = nil, want error")
+	}
+	if runtime.reinitializeCalls != 0 || runtime.reinitializeWithCalls != 0 {
+		t.Fatalf("unexpected reinitialize calls: interactive=%d noninteractive=%d", runtime.reinitializeCalls, runtime.reinitializeWithCalls)
+	}
+	if !strings.Contains(err.Error(), "sk is required") {
+		t.Fatalf("error = %q, want missing sk", err.Error())
+	}
+}
+
 func TestShellShowsGroupedUsageOnSeparateLines(t *testing.T) {
 	runtime := &fakeRuntime{
 		cfg:         config.AppConfig{APIBaseURL: "https://cc.example.com", AccessKey: "abcdefghijkl", SecretKey: "qrstuvwxyz1234"},
@@ -575,6 +667,18 @@ func TestShellSupportsHelpFlags(t *testing.T) {
 	}
 	if !strings.Contains(io.Output(), "config profiles commands") {
 		t.Fatalf("output missing config profiles help in %q", io.Output())
+	}
+	if !strings.Contains(io.Output(), "config profiles add <name> [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]") {
+		t.Fatalf("output missing config profiles add credential help in %q", io.Output())
+	}
+
+	io = testsupport.NewTestConsole()
+	shell = repl.NewShell(io, runtime)
+	if err := shell.ExecuteArgs([]string{"config", "init", "--help"}); err != nil {
+		t.Fatalf("ExecuteArgs(config init --help) error = %v", err)
+	}
+	if !strings.Contains(io.Output(), "config init [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]") {
+		t.Fatalf("output missing config init credential help in %q", io.Output())
 	}
 }
 
@@ -852,19 +956,26 @@ func TestShellSupportsProfileCommands(t *testing.T) {
 }
 
 type fakeRuntime struct {
-	cfg               config.AppConfig
-	language          string
-	currentProfile    string
-	profileSummaries  []config.ProfileSummary
-	dataJobs          datajob.Operations
-	dataSources       datasource.Operations
-	clusters          cluster.Operations
-	workers           worker.Operations
-	consoleJobs       consolejob.Operations
-	jobConfigs        jobconfig.Operations
-	schemas           ccschema.Operations
-	reinitializeCalls int
-	reinitializeValue bool
+	cfg                       config.AppConfig
+	language                  string
+	currentProfile            string
+	profileSummaries          []config.ProfileSummary
+	dataJobs                  datajob.Operations
+	dataSources               datasource.Operations
+	clusters                  cluster.Operations
+	workers                   worker.Operations
+	consoleJobs               consolejob.Operations
+	jobConfigs                jobconfig.Operations
+	schemas                   ccschema.Operations
+	reinitializeCalls         int
+	reinitializeValue         bool
+	reinitializeWithCalls     int
+	reinitializeWithSet       bool
+	lastReinitializeConfig    config.AppConfig
+	addProfileWithConfigCalls int
+	addWithConfigSet          bool
+	lastAddProfileName        string
+	lastAddProfileConfig      config.AppConfig
 }
 
 type abortingConsole struct {
@@ -961,9 +1072,30 @@ func (f *fakeRuntime) Reinitialize(io console.IO) (bool, error) {
 	return f.reinitializeValue, nil
 }
 
+func (f *fakeRuntime) ReinitializeWithConfig(cfg config.AppConfig) (bool, error) {
+	f.reinitializeWithCalls++
+	f.lastReinitializeConfig = cfg
+	if f.reinitializeWithSet {
+		f.cfg = cfg
+		return true, nil
+	}
+	return f.reinitializeValue, nil
+}
+
 func (f *fakeRuntime) AddProfile(name string, io console.IO) (bool, error) {
 	f.profileSummaries = append(f.profileSummaries, config.ProfileSummary{Name: name, Current: false})
 	return true, nil
+}
+
+func (f *fakeRuntime) AddProfileWithConfig(name string, cfg config.AppConfig) (bool, error) {
+	f.addProfileWithConfigCalls++
+	f.lastAddProfileName = name
+	f.lastAddProfileConfig = cfg
+	f.profileSummaries = append(f.profileSummaries, config.ProfileSummary{Name: name, APIBaseURL: cfg.APIBaseURL, Current: false})
+	if f.addWithConfigSet {
+		return true, nil
+	}
+	return false, nil
 }
 
 func (f *fakeRuntime) UseProfile(name string) error {

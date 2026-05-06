@@ -29,7 +29,9 @@ type RuntimeContext interface {
 	JobConfigs() jobconfig.Operations
 	Schemas() ccschema.Operations
 	Reinitialize(io console.IO) (bool, error)
+	ReinitializeWithConfig(cfg config.AppConfig) (bool, error)
 	AddProfile(name string, io console.IO) (bool, error)
+	AddProfileWithConfig(name string, cfg config.AppConfig) (bool, error)
 	UseProfile(name string) error
 	RemoveProfile(name string) error
 	SetLanguage(language string) error
@@ -74,6 +76,17 @@ func (r *Runtime) InitializeIfNeeded(io console.IO) (bool, error) {
 	return true, nil
 }
 
+func (r *Runtime) InitializeIfConfigured() error {
+	if !r.configService.Exists() {
+		return nil
+	}
+	state, err := r.configService.Load()
+	if err != nil {
+		return nil
+	}
+	return r.activateState(state)
+}
+
 func (r *Runtime) Reinitialize(io console.IO) (bool, error) {
 	state := r.state
 	if state.Language == "" {
@@ -111,6 +124,34 @@ func (r *Runtime) Reinitialize(io console.IO) (bool, error) {
 		return false, err
 	}
 	io.Println(i18n.T("wizard.savedTo", r.configService.Path()))
+	return true, nil
+}
+
+func (r *Runtime) ReinitializeWithConfig(cfg config.AppConfig) (bool, error) {
+	state := r.state
+	if state.Language == "" {
+		state.Language = r.Language()
+	}
+	_ = i18n.SetLanguage(state.NormalizedLanguage())
+
+	profileName := r.currentProfile
+	if profileName == "" {
+		profileName = config.DefaultProfileName
+	}
+
+	if err := r.validateConfig(cfg); err != nil {
+		return false, err
+	}
+
+	state.Language = state.NormalizedLanguage()
+	if state.Profiles == nil {
+		state.Profiles = make(map[string]config.AppConfig)
+	}
+	state.CurrentProfile = profileName
+	state.Profiles[profileName] = cfg
+	if err := r.saveAndActivate(state); err != nil {
+		return false, err
+	}
 	return true, nil
 }
 
@@ -154,6 +195,42 @@ func (r *Runtime) AddProfile(name string, io console.IO) (bool, error) {
 		r.state = state
 	}
 	io.Println(i18n.T("wizard.savedTo", r.configService.Path()))
+	return true, nil
+}
+
+func (r *Runtime) AddProfileWithConfig(name string, cfg config.AppConfig) (bool, error) {
+	if err := config.ValidateProfileName(name); err != nil {
+		return false, err
+	}
+
+	state := r.state
+	profileName := config.NormalizeProfileName(name)
+	if state.Profiles == nil {
+		state.Profiles = make(map[string]config.AppConfig)
+	}
+	if _, exists := state.Profiles[profileName]; exists {
+		return false, errors.New(i18n.T("config.profileExists", profileName))
+	}
+
+	_ = i18n.SetLanguage(state.NormalizedLanguage())
+	if err := r.validateConfig(cfg); err != nil {
+		return false, err
+	}
+
+	state.Profiles[profileName] = cfg
+	if state.CurrentProfile == "" {
+		state.CurrentProfile = profileName
+	}
+	if err := r.configService.Save(state); err != nil {
+		return false, err
+	}
+	if state.ActiveProfileName() == profileName {
+		if err := r.activateState(state); err != nil {
+			return false, err
+		}
+	} else {
+		r.state = state
+	}
 	return true, nil
 }
 
