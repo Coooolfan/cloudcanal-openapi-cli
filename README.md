@@ -2,10 +2,9 @@
 
 CloudCanal OpenAPI 的命令行工具，支持：
 
-- 交互式命令行
 - 单次命令执行
 - `--output json` 机器可读输出
-- 安装脚本默认配置 zsh / bash TAB 补全
+- 安装脚本默认配置 zsh / bash shell 补全
 
 完整命令说明见 [docs/cloudcanal-cli-usage.md](docs/cloudcanal-cli-usage.md)。
 
@@ -17,21 +16,15 @@ CloudCanal OpenAPI 的命令行工具，支持：
 curl -fsSL https://raw.githubusercontent.com/ClouGence/cloudcanal-openapi-cli/main/scripts/install.sh | bash
 ```
 
-2. 启动并完成初始化
+2. 非交互初始化
 
 ```bash
-cloudcanal
+cloudcanal config init --api-host https://cc.example.com --ak your-ak --sk your-sk
 ```
 
 ## 常用用法
 
-交互模式：
-
-```bash
-cloudcanal
-```
-
-单次命令：
+命令执行：
 
 ```bash
 cloudcanal version
@@ -102,7 +95,7 @@ cloudcanal jobs list --type SYNC --output json
 - SDK API 对照 CLI 命令：[docs/openapi-sdk-api-reference.md](docs/openapi-sdk-api-reference.md)
 - 版本变更记录：[CHANGELOG.md](CHANGELOG.md)
 - 机器可读输出：在查询命令后追加 `--output json`
-- 交互模式和 shell 均支持 TAB 自动补全
+- shell 补全由安装脚本自动配置
 
 ## 卸载
 

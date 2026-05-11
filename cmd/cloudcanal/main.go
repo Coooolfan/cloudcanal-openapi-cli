@@ -23,45 +23,30 @@ func main() {
 		os.Exit(exitCode)
 	}
 
-	io := console.NewStdIO(os.Stdin, os.Stdout)
-	if closer, ok := any(io).(interface{ Close() error }); ok {
-		defer func() { _ = closer.Close() }()
-	}
+	io := console.NewStdIO(os.Stdout)
 	configService := config.NewService("")
 	_ = i18n.SetLanguage(configService.LoadLanguage())
-	for _, line := range startupUpdateLines(os.Args[1:], len(os.Args) == 1, startupUpdateChecker) {
+	for _, line := range startupUpdateLines(os.Args[1:], startupUpdateChecker) {
 		io.Println(line)
 	}
 
 	runtime := app.NewRuntime(configService)
-	ok := true
 	var err error
 	if isNonInteractiveConfigSetupCommand(os.Args[1:]) {
 		err = runtime.InitializeIfConfigured()
 	} else {
-		ok, err = runtime.InitializeIfNeeded(io)
+		err = runtime.InitializeIfNeeded()
 	}
 	if err != nil {
 		io.Println(i18n.T("common.fatalErrorPrefix", err.Error()))
 		os.Exit(1)
 	}
-	if !ok {
-		return
-	}
 
 	shell := repl.NewShell(io, runtime)
-	if len(os.Args) > 1 {
-		if line, ok := commandContextLine(os.Args[1:], runtime); ok {
-			io.Println(line)
-		}
-		if err := shell.ExecuteArgs(os.Args[1:]); err != nil {
-			shell.PrintFatalError(err)
-			os.Exit(1)
-		}
-		return
+	if line, ok := commandContextLine(os.Args[1:], runtime); ok {
+		io.Println(line)
 	}
-
-	if err := shell.Run(); err != nil {
+	if err := shell.ExecuteArgs(os.Args[1:]); err != nil {
 		shell.PrintFatalError(err)
 		os.Exit(1)
 	}
@@ -99,15 +84,13 @@ func containsConfigCredentialFlag(args []string) bool {
 
 func handleEarlyCommands(args []string) (bool, int) {
 	if os.Getenv(repl.CompletionEnvVar) == "1" {
-		for _, candidate := range repl.CompletionCandidates(args, false) {
+		for _, candidate := range repl.CompletionCandidates(args) {
 			fmt.Println(candidate)
 		}
 		return true, 0
 	}
 
-	if len(args) > 0 {
-		_ = i18n.SetLanguage(config.NewService("").LoadLanguage())
-	}
+	_ = i18n.SetLanguage(config.NewService("").LoadLanguage())
 	if helpText, ok := repl.RenderCommandHelp(args); ok {
 		fmt.Println(helpText)
 		return true, 0
@@ -117,7 +100,8 @@ func handleEarlyCommands(args []string) (bool, int) {
 	}
 
 	if len(args) == 0 {
-		return false, 0
+		fmt.Println(repl.RenderHelp(nil))
+		return true, 1
 	}
 
 	switch strings.ToLower(args[0]) {
@@ -130,7 +114,7 @@ func handleEarlyCommands(args []string) (bool, int) {
 		fmt.Print(script)
 		return true, 0
 	case "__complete":
-		for _, candidate := range repl.CompletionCandidates(args[1:], false) {
+		for _, candidate := range repl.CompletionCandidates(args[1:]) {
 			fmt.Println(candidate)
 		}
 		return true, 0
@@ -257,8 +241,8 @@ type updateNoticeChecker interface {
 	Check(currentVersion string) (updatecheck.Notice, error)
 }
 
-func startupUpdateLines(args []string, interactive bool, checker updateNoticeChecker) []string {
-	if checker == nil || !shouldShowStartupUpdate(args, interactive) {
+func startupUpdateLines(args []string, checker updateNoticeChecker) []string {
+	if checker == nil || !shouldShowStartupUpdate(args) {
 		return nil
 	}
 
@@ -273,11 +257,7 @@ func startupUpdateLines(args []string, interactive bool, checker updateNoticeChe
 	}
 }
 
-func shouldShowStartupUpdate(args []string, interactive bool) bool {
-	if interactive {
-		return true
-	}
-
+func shouldShowStartupUpdate(args []string) bool {
 	filtered, format, err := extractOutputFormat(args)
 	if err != nil || format != "text" || len(filtered) == 0 {
 		return false
@@ -317,7 +297,7 @@ func shouldShowCommandContext(args []string) bool {
 	}
 
 	switch strings.ToLower(strings.TrimSpace(args[0])) {
-	case "config", "lang", "language", "version", "completion", "__complete", "clear", "cls":
+	case "config", "lang", "language", "version", "completion", "__complete":
 		return false
 	default:
 		return true

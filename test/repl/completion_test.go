@@ -8,25 +8,6 @@ import (
 	"testing"
 )
 
-func TestShellRegistersCompleter(t *testing.T) {
-	runtime := newCompletionRuntime()
-	io := testsupport.NewTestConsole()
-
-	repl.NewShell(io, runtime)
-
-	candidates := io.Complete("jo")
-	if !contains(candidates, "jobs") {
-		t.Fatalf("completion candidates = %v, want jobs", candidates)
-	}
-	if !contains(candidates, "job-config") {
-		t.Fatalf("completion candidates = %v, want job-config", candidates)
-	}
-	schemaCandidates := io.Complete("sc")
-	if !contains(schemaCandidates, "schemas") {
-		t.Fatalf("completion candidates = %v, want schemas", schemaCandidates)
-	}
-}
-
 func TestCompletionCandidatesSuggestCommandsFlagsAndValues(t *testing.T) {
 	testCases := []struct {
 		name string
@@ -60,7 +41,7 @@ func TestCompletionCandidatesSuggestCommandsFlagsAndValues(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			candidates := repl.CompletionCandidates(tc.args, false)
+			candidates := repl.CompletionCandidates(tc.args)
 			for _, want := range tc.want {
 				if !contains(candidates, want) {
 					t.Fatalf("completion candidates for %v = %v, want %q", tc.args, candidates, want)
@@ -71,14 +52,14 @@ func TestCompletionCandidatesSuggestCommandsFlagsAndValues(t *testing.T) {
 }
 
 func TestCompletionCandidatesHideInternalAndAliasCommands(t *testing.T) {
-	candidates := repl.CompletionCandidates([]string{""}, true)
-	for _, hidden := range []string{"clear", "cls", "completion", "jobconfig", "schema", "lang", "language", "quit"} {
+	candidates := repl.CompletionCandidates([]string{""})
+	for _, hidden := range []string{"clear", "cls", "completion", "jobconfig", "schema", "lang", "language", "exit", "quit"} {
 		if contains(candidates, hidden) {
 			t.Fatalf("completion candidates = %v, should not contain %q", candidates, hidden)
 		}
 	}
 
-	helpCandidates := repl.CompletionCandidates([]string{"help", ""}, false)
+	helpCandidates := repl.CompletionCandidates([]string{"help", ""})
 	for _, hidden := range []string{"completion", "lang"} {
 		if contains(helpCandidates, hidden) {
 			t.Fatalf("help completion candidates = %v, should not contain %q", helpCandidates, hidden)
@@ -87,7 +68,7 @@ func TestCompletionCandidatesHideInternalAndAliasCommands(t *testing.T) {
 }
 
 func TestCompletionCandidatesDoNotSuggestFlagsWhileTypingFreeformValues(t *testing.T) {
-	candidates := repl.CompletionCandidates([]string{"jobs", "list", "--name", ""}, false)
+	candidates := repl.CompletionCandidates([]string{"jobs", "list", "--name", ""})
 	if len(candidates) != 0 {
 		t.Fatalf("completion candidates = %v, want empty while typing --name value", candidates)
 	}

@@ -5,7 +5,6 @@ import (
 	"github.com/ClouGence/cloudcanal-openapi-cli/internal/app"
 	"github.com/ClouGence/cloudcanal-openapi-cli/internal/cluster"
 	"github.com/ClouGence/cloudcanal-openapi-cli/internal/config"
-	"github.com/ClouGence/cloudcanal-openapi-cli/internal/console"
 	"github.com/ClouGence/cloudcanal-openapi-cli/internal/consolejob"
 	"github.com/ClouGence/cloudcanal-openapi-cli/internal/datajob"
 	"github.com/ClouGence/cloudcanal-openapi-cli/internal/datasource"
@@ -17,8 +16,6 @@ import (
 	"github.com/ClouGence/cloudcanal-openapi-cli/test/testsupport"
 	"strings"
 	"testing"
-
-	"github.com/peterh/liner"
 )
 
 func TestShellHandlesHappyPathCommands(t *testing.T) {
@@ -119,7 +116,7 @@ func TestShellHandlesHappyPathCommands(t *testing.T) {
 		jobConfigs:  jobConfigs,
 		schemas:     schemas,
 	}
-	io := testsupport.NewTestConsole(
+	commands := []string{
 		"help jobs",
 		`jobs list --name sync-job --type SYNC --desc "nightly sync" --source-id 101 --target-id 202`,
 		`jobs create --body '{"clusterId":1,"srcDsId":101,"dstDsId":202,"jobType":"SYNC","dataJobDesc":"sdk job"}'`,
@@ -151,12 +148,18 @@ func TestShellHandlesHappyPathCommands(t *testing.T) {
 		"config lang set zh",
 		"config lang set en",
 		"config show",
-		"exit",
-	)
+	}
+	io := testsupport.NewTestConsole()
 
 	shell := repl.NewShell(io, runtime)
-	if err := shell.Run(); err != nil {
-		t.Fatalf("Run() error = %v", err)
+	for _, command := range commands {
+		tokens, err := repl.SplitCommandLine(command)
+		if err != nil {
+			t.Fatalf("SplitCommandLine(%q) error = %v", command, err)
+		}
+		if err := shell.ExecuteArgs(tokens); err != nil {
+			t.Fatalf("ExecuteArgs(%q) error = %v", command, err)
+		}
 	}
 
 	out := io.Output()
@@ -274,7 +277,7 @@ func TestShellReportsInvalidCommandsWithoutExiting(t *testing.T) {
 		jobConfigs:        &fakeJobConfigs{},
 		reinitializeValue: true,
 	}
-	io := testsupport.NewTestConsole(
+	commands := []string{
 		"jobs start abc",
 		"jobs replay 11 --bad",
 		`jobs list --desc "unterminated`,
@@ -283,17 +286,23 @@ func TestShellReportsInvalidCommandsWithoutExiting(t *testing.T) {
 		"job-config specs --type SYNC --initial-sync=maybe",
 		"unknown",
 		"config init",
-		"exit",
-	)
+	}
+	io := testsupport.NewTestConsole()
 
 	shell := repl.NewShell(io, runtime)
-	if err := shell.Run(); err != nil {
-		t.Fatalf("Run() error = %v", err)
+	for _, command := range commands {
+		tokens, err := repl.SplitCommandLine(command)
+		if err == nil {
+			err = shell.ExecuteArgs(tokens)
+		}
+		if err != nil {
+			shell.PrintError(err)
+		}
 	}
 
 	out := io.Output()
-	if runtime.reinitializeCalls != 1 {
-		t.Fatalf("reinitializeCalls = %d, want 1", runtime.reinitializeCalls)
+	if runtime.reinitializeWithCalls != 0 {
+		t.Fatalf("reinitializeWithCalls = %d, want 0", runtime.reinitializeWithCalls)
 	}
 	for _, want := range []string{
 		"jobId must be a positive integer",
@@ -303,7 +312,7 @@ func TestShellReportsInvalidCommandsWithoutExiting(t *testing.T) {
 		"dataJobType is required",
 		"initialSync must be a boolean",
 		"Unknown command: unknown",
-		"Configuration updated.",
+		"Usage: config init --api-host URL --ak ACCESS_KEY --sk SECRET_KEY",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output missing %q in %q", want, out)
@@ -325,13 +334,14 @@ func TestShellExecutesArgsWithoutInteractiveLoop(t *testing.T) {
 		},
 	}
 	runtime := &fakeRuntime{
-		cfg:         config.AppConfig{APIBaseURL: "https://cc.example.com", AccessKey: "abcdefghijkl", SecretKey: "qrstuvwxyz1234"},
-		dataJobs:    dataJobs,
-		dataSources: &fakeDataSources{},
-		clusters:    &fakeClusters{},
-		workers:     &fakeWorkers{},
-		consoleJobs: &fakeConsoleJobs{},
-		jobConfigs:  &fakeJobConfigs{},
+		cfg:              config.AppConfig{APIBaseURL: "https://cc.example.com", AccessKey: "abcdefghijkl", SecretKey: "qrstuvwxyz1234"},
+		dataJobs:         dataJobs,
+		dataSources:      &fakeDataSources{},
+		clusters:         &fakeClusters{},
+		workers:          &fakeWorkers{},
+		consoleJobs:      &fakeConsoleJobs{},
+		jobConfigs:       &fakeJobConfigs{},
+		addWithConfigSet: true,
 	}
 	io := testsupport.NewTestConsole()
 
@@ -377,9 +387,6 @@ func TestShellConfigInitSupportsNonInteractiveCredentials(t *testing.T) {
 		t.Fatalf("ExecuteArgs(config init flags) error = %v", err)
 	}
 
-	if runtime.reinitializeCalls != 0 {
-		t.Fatalf("reinitializeCalls = %d, want 0", runtime.reinitializeCalls)
-	}
 	if runtime.reinitializeWithCalls != 1 {
 		t.Fatalf("reinitializeWithCalls = %d, want 1", runtime.reinitializeWithCalls)
 	}
@@ -426,13 +433,14 @@ func TestShellProfilesAddSupportsNonInteractiveCredentials(t *testing.T) {
 
 func TestShellConfigCredentialsRequireAllValues(t *testing.T) {
 	runtime := &fakeRuntime{
-		cfg:         config.AppConfig{APIBaseURL: "https://cc.example.com", AccessKey: "ak", SecretKey: "sk"},
-		dataJobs:    &fakeDataJobs{},
-		dataSources: &fakeDataSources{},
-		clusters:    &fakeClusters{},
-		workers:     &fakeWorkers{},
-		consoleJobs: &fakeConsoleJobs{},
-		jobConfigs:  &fakeJobConfigs{},
+		cfg:              config.AppConfig{APIBaseURL: "https://cc.example.com", AccessKey: "ak", SecretKey: "sk"},
+		dataJobs:         &fakeDataJobs{},
+		dataSources:      &fakeDataSources{},
+		clusters:         &fakeClusters{},
+		workers:          &fakeWorkers{},
+		consoleJobs:      &fakeConsoleJobs{},
+		jobConfigs:       &fakeJobConfigs{},
+		addWithConfigSet: true,
 	}
 	io := testsupport.NewTestConsole()
 
@@ -441,8 +449,8 @@ func TestShellConfigCredentialsRequireAllValues(t *testing.T) {
 	if err == nil {
 		t.Fatal("ExecuteArgs(config init partial flags) error = nil, want error")
 	}
-	if runtime.reinitializeCalls != 0 || runtime.reinitializeWithCalls != 0 {
-		t.Fatalf("unexpected reinitialize calls: interactive=%d noninteractive=%d", runtime.reinitializeCalls, runtime.reinitializeWithCalls)
+	if runtime.reinitializeWithCalls != 0 {
+		t.Fatalf("unexpected reinitializeWithCalls=%d", runtime.reinitializeWithCalls)
 	}
 	if !strings.Contains(err.Error(), "sk is required") {
 		t.Fatalf("error = %q, want missing sk", err.Error())
@@ -510,62 +518,6 @@ func TestShellShowsNestedCommandUsage(t *testing.T) {
 	}
 }
 
-func TestShellClearsScreenWithAliases(t *testing.T) {
-	runtime := &fakeRuntime{
-		cfg:         config.AppConfig{APIBaseURL: "https://cc.example.com", AccessKey: "abcdefghijkl", SecretKey: "qrstuvwxyz1234"},
-		dataJobs:    &fakeDataJobs{},
-		dataSources: &fakeDataSources{},
-		clusters:    &fakeClusters{},
-		workers:     &fakeWorkers{},
-		consoleJobs: &fakeConsoleJobs{},
-		jobConfigs:  &fakeJobConfigs{},
-	}
-
-	io := testsupport.NewTestConsole("clear", "cls", "exit")
-	shell := repl.NewShell(io, runtime)
-	if err := shell.Run(); err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-	if got := strings.Count(io.Output(), "\x1b[H\x1b[2J"); got != 2 {
-		t.Fatalf("clear sequence count = %d, want 2 in %q", got, io.Output())
-	}
-
-	io = testsupport.NewTestConsole()
-	shell = repl.NewShell(io, runtime)
-	if err := shell.ExecuteArgs([]string{"clear"}); err != nil {
-		t.Fatalf("ExecuteArgs(clear) error = %v", err)
-	}
-	if !strings.Contains(io.Output(), "\x1b[H\x1b[2J") {
-		t.Fatalf("output missing clear sequence in %q", io.Output())
-	}
-}
-
-func TestShellIgnoresPromptAbortInInteractiveMode(t *testing.T) {
-	runtime := &fakeRuntime{
-		cfg:         config.AppConfig{APIBaseURL: "https://cc.example.com", AccessKey: "abcdefghijkl", SecretKey: "qrstuvwxyz1234"},
-		dataJobs:    &fakeDataJobs{},
-		dataSources: &fakeDataSources{},
-		clusters:    &fakeClusters{},
-		workers:     &fakeWorkers{},
-		consoleJobs: &fakeConsoleJobs{},
-		jobConfigs:  &fakeJobConfigs{},
-	}
-	io := &abortingConsole{}
-
-	shell := repl.NewShell(io, runtime)
-	if err := shell.Run(); err != nil {
-		t.Fatalf("Run() error = %v", err)
-	}
-
-	out := io.Output()
-	if strings.Contains(out, "prompt aborted") || strings.Contains(out, "Fatal error") {
-		t.Fatalf("output should not contain prompt abort error in %q", out)
-	}
-	if got := strings.Count(out, "cloudcanal[dev]> "); got != 1 {
-		t.Fatalf("prompt count = %d, want 1 in %q", got, out)
-	}
-}
-
 func TestShellHelpOverviewHidesInternalCommands(t *testing.T) {
 	runtime := &fakeRuntime{
 		cfg:         config.AppConfig{APIBaseURL: "https://cc.example.com", AccessKey: "abcdefghijkl", SecretKey: "qrstuvwxyz1234"},
@@ -591,9 +543,6 @@ func TestShellHelpOverviewHidesInternalCommands(t *testing.T) {
 		"config profiles list",
 		"config lang show",
 		"version           Show build version information",
-		"TAB               Complete commands and options",
-		"Ctrl+C            Exit interactive mode",
-		"exit              Leave interactive mode",
 	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output missing %q in %q", want, out)
@@ -603,9 +552,9 @@ func TestShellHelpOverviewHidesInternalCommands(t *testing.T) {
 		"completion zsh",
 		"help completion",
 		"help lang",
-		"clear             Clear the current screen",
-		"cls               Alias of clear",
 		"quit",
+		"Ctrl+C",
+		"exit",
 	} {
 		if strings.Contains(out, hidden) {
 			t.Fatalf("output should not contain %q in %q", hidden, out)
@@ -668,7 +617,7 @@ func TestShellSupportsHelpFlags(t *testing.T) {
 	if !strings.Contains(io.Output(), "config profiles commands") {
 		t.Fatalf("output missing config profiles help in %q", io.Output())
 	}
-	if !strings.Contains(io.Output(), "config profiles add <name> [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]") {
+	if !strings.Contains(io.Output(), "config profiles add <name> --api-host URL --ak ACCESS_KEY --sk SECRET_KEY") {
 		t.Fatalf("output missing config profiles add credential help in %q", io.Output())
 	}
 
@@ -677,7 +626,7 @@ func TestShellSupportsHelpFlags(t *testing.T) {
 	if err := shell.ExecuteArgs([]string{"config", "init", "--help"}); err != nil {
 		t.Fatalf("ExecuteArgs(config init --help) error = %v", err)
 	}
-	if !strings.Contains(io.Output(), "config init [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]") {
+	if !strings.Contains(io.Output(), "config init --api-host URL --ak ACCESS_KEY --sk SECRET_KEY") {
 		t.Fatalf("output missing config init credential help in %q", io.Output())
 	}
 }
@@ -785,11 +734,13 @@ func TestShellSwitchesLanguageForFollowUpOutput(t *testing.T) {
 		consoleJobs: &fakeConsoleJobs{},
 		jobConfigs:  &fakeJobConfigs{},
 	}
-	io := testsupport.NewTestConsole("config lang set zh", "help config", "exit")
+	io := testsupport.NewTestConsole()
 
 	shell := repl.NewShell(io, runtime)
-	if err := shell.Run(); err != nil {
-		t.Fatalf("Run() error = %v", err)
+	for _, args := range [][]string{{"config", "lang", "set", "zh"}, {"help", "config"}} {
+		if err := shell.ExecuteArgs(args); err != nil {
+			t.Fatalf("ExecuteArgs(%v) error = %v", args, err)
+		}
 	}
 
 	out := io.Output()
@@ -905,12 +856,13 @@ func TestShellSupportsProfileCommands(t *testing.T) {
 			{Name: "dev", APIBaseURL: "https://dev.example.com", Current: true},
 			{Name: "test", APIBaseURL: "https://test.example.com", Current: false},
 		},
-		dataJobs:    &fakeDataJobs{},
-		dataSources: &fakeDataSources{},
-		clusters:    &fakeClusters{},
-		workers:     &fakeWorkers{},
-		consoleJobs: &fakeConsoleJobs{},
-		jobConfigs:  &fakeJobConfigs{},
+		dataJobs:         &fakeDataJobs{},
+		dataSources:      &fakeDataSources{},
+		clusters:         &fakeClusters{},
+		workers:          &fakeWorkers{},
+		consoleJobs:      &fakeConsoleJobs{},
+		jobConfigs:       &fakeJobConfigs{},
+		addWithConfigSet: true,
 	}
 
 	io := testsupport.NewTestConsole()
@@ -938,7 +890,7 @@ func TestShellSupportsProfileCommands(t *testing.T) {
 
 	io = testsupport.NewTestConsole()
 	shell = repl.NewShell(io, runtime)
-	if err := shell.ExecuteArgs([]string{"config", "profiles", "add", "prod"}); err != nil {
+	if err := shell.ExecuteArgs([]string{"config", "profiles", "add", "prod", "--api-host", "https://prod.example.com", "--ak", "prod-ak", "--sk", "prod-sk"}); err != nil {
 		t.Fatalf("ExecuteArgs(config profiles add prod) error = %v", err)
 	}
 	if !strings.Contains(io.Output(), "Profile prod added.") {
@@ -967,7 +919,6 @@ type fakeRuntime struct {
 	consoleJobs               consolejob.Operations
 	jobConfigs                jobconfig.Operations
 	schemas                   ccschema.Operations
-	reinitializeCalls         int
 	reinitializeValue         bool
 	reinitializeWithCalls     int
 	reinitializeWithSet       bool
@@ -976,38 +927,6 @@ type fakeRuntime struct {
 	addWithConfigSet          bool
 	lastAddProfileName        string
 	lastAddProfileConfig      config.AppConfig
-}
-
-type abortingConsole struct {
-	output  strings.Builder
-	aborted bool
-}
-
-func (a *abortingConsole) ReadLine(prompt string) (string, error) {
-	a.output.WriteString(prompt)
-	if !a.aborted {
-		a.aborted = true
-		return "", liner.ErrPromptAborted
-	}
-	return "exit", nil
-}
-
-func (a *abortingConsole) ReadSecret(prompt string) (string, error) {
-	a.output.WriteString(prompt)
-	return "", liner.ErrPromptAborted
-}
-
-func (a *abortingConsole) Println(text string) {
-	a.output.WriteString(text)
-	a.output.WriteString("\n")
-}
-
-func (a *abortingConsole) ClearScreen() {
-	a.output.WriteString("\033[H\033[2J")
-}
-
-func (a *abortingConsole) Output() string {
-	return a.output.String()
 }
 
 func (f *fakeRuntime) Config() config.AppConfig {
@@ -1067,11 +986,6 @@ func (f *fakeRuntime) Schemas() ccschema.Operations {
 	return f.schemas
 }
 
-func (f *fakeRuntime) Reinitialize(io console.IO) (bool, error) {
-	f.reinitializeCalls++
-	return f.reinitializeValue, nil
-}
-
 func (f *fakeRuntime) ReinitializeWithConfig(cfg config.AppConfig) (bool, error) {
 	f.reinitializeWithCalls++
 	f.lastReinitializeConfig = cfg
@@ -1080,11 +994,6 @@ func (f *fakeRuntime) ReinitializeWithConfig(cfg config.AppConfig) (bool, error)
 		return true, nil
 	}
 	return f.reinitializeValue, nil
-}
-
-func (f *fakeRuntime) AddProfile(name string, io console.IO) (bool, error) {
-	f.profileSummaries = append(f.profileSummaries, config.ProfileSummary{Name: name, Current: false})
-	return true, nil
 }
 
 func (f *fakeRuntime) AddProfileWithConfig(name string, cfg config.AppConfig) (bool, error) {

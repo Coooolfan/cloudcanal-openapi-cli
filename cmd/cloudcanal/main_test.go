@@ -68,6 +68,38 @@ func TestHandleEarlyCommandsSupportsVersionFlagJSONWithInvalidConfig(t *testing.
 	}
 }
 
+func TestHandleEarlyCommandsNoArgsUsesConfiguredLanguage(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	configPath := filepath.Join(home, ".cloudcanal-cli", "config.json")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	configContent := `{"language":"zh","currentProfile":"dev","profiles":{"dev":{"apiBaseUrl":"https://cc.example.com","accessKey":"ak","secretKey":"sk"}}}`
+	if err := os.WriteFile(configPath, []byte(configContent), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	originalLanguage := i18n.CurrentLanguage()
+	t.Cleanup(func() {
+		_ = i18n.SetLanguage(originalLanguage)
+	})
+	_ = i18n.SetLanguage(i18n.English)
+
+	handled, exitCode, stdout, stderr := captureProcessResult(t, func() (bool, int) {
+		return handleEarlyCommands(nil)
+	})
+	if !handled || exitCode != 1 {
+		t.Fatalf("handled=%v exitCode=%d, want true/1", handled, exitCode)
+	}
+	if stderr != "" {
+		t.Fatalf("stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, "CloudCanal CLI 帮助") {
+		t.Fatalf("stdout missing Chinese help in %q", stdout)
+	}
+}
+
 func TestCommandContextLine(t *testing.T) {
 	runtime := fakeCommandContextRuntime{
 		currentProfile: "test",
@@ -100,8 +132,8 @@ func TestNonInteractiveConfigSetupCommandDetection(t *testing.T) {
 		{name: "config init inline flags", args: []string{"config", "init", "--api-host=https://cc.example.com"}, want: true},
 		{name: "config init json output", args: []string{"config", "init", "--api-host", "https://cc.example.com", "--output", "json"}, want: true},
 		{name: "profiles add flags", args: []string{"config", "profiles", "add", "prod", "--ak", "test-ak"}, want: true},
-		{name: "config init interactive", args: []string{"config", "init"}, want: false},
-		{name: "profiles add interactive", args: []string{"config", "profiles", "add", "prod"}, want: false},
+		{name: "config init missing flags", args: []string{"config", "init"}, want: false},
+		{name: "profiles add missing flags", args: []string{"config", "profiles", "add", "prod"}, want: false},
 		{name: "unrelated command", args: []string{"jobs", "list", "--api-host", "https://cc.example.com"}, want: false},
 	}
 
@@ -129,7 +161,7 @@ func TestStartupUpdateLines(t *testing.T) {
 		},
 	}
 
-	lines := startupUpdateLines([]string{"jobs", "list"}, false, checker)
+	lines := startupUpdateLines([]string{"jobs", "list"}, checker)
 	want := []string{
 		"New version available: v0.1.3 (current: v0.1.2)",
 		"Upgrade command: curl -fsSL https://example.com/install.sh | bash",
@@ -138,18 +170,29 @@ func TestStartupUpdateLines(t *testing.T) {
 		t.Fatalf("startupUpdateLines() = %#v, want %#v", lines, want)
 	}
 
-	if lines := startupUpdateLines([]string{"jobs", "list", "--output", "json"}, false, checker); lines != nil {
+	if lines := startupUpdateLines([]string{"jobs", "list", "--output", "json"}, checker); lines != nil {
 		t.Fatalf("startupUpdateLines(json) = %#v, want nil", lines)
 	}
-	if lines := startupUpdateLines([]string{"version"}, false, checker); lines != nil {
+	if lines := startupUpdateLines([]string{"version"}, checker); lines != nil {
 		t.Fatalf("startupUpdateLines(version) = %#v, want nil", lines)
 	}
-	if lines := startupUpdateLines(nil, true, checker); !reflect.DeepEqual(lines, want) {
-		t.Fatalf("startupUpdateLines(interactive) = %#v, want %#v", lines, want)
+	if lines := startupUpdateLines(nil, checker); lines != nil {
+		t.Fatalf("startupUpdateLines(no args) = %#v, want nil", lines)
 	}
 }
 
 func captureProcessOutput(t *testing.T, fn func() (bool, int)) (string, string) {
+	t.Helper()
+
+	handled, exitCode, stdout, stderr := captureProcessResult(t, fn)
+	if !handled || exitCode != 0 {
+		t.Fatalf("handled=%v exitCode=%d, want true/0", handled, exitCode)
+	}
+
+	return stdout, stderr
+}
+
+func captureProcessResult(t *testing.T, fn func() (bool, int)) (bool, int, string, string) {
 	t.Helper()
 
 	originalStdout := os.Stdout
@@ -185,11 +228,7 @@ func captureProcessOutput(t *testing.T, fn func() (bool, int)) (string, string) 
 	_ = stdoutReader.Close()
 	_ = stderrReader.Close()
 
-	if !handled || exitCode != 0 {
-		t.Fatalf("handled=%v exitCode=%d, want true/0", handled, exitCode)
-	}
-
-	return strings.TrimSpace(string(stdoutBytes)), strings.TrimSpace(string(stderrBytes))
+	return handled, exitCode, strings.TrimSpace(string(stdoutBytes)), strings.TrimSpace(string(stderrBytes))
 }
 
 type fakeCommandContextRuntime struct {

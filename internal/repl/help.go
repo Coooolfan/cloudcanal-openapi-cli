@@ -61,17 +61,12 @@ CloudCanal CLI 帮助
   schemas list-trans-objs-by-meta 查看映射对象
   version           查看当前版本信息
   config show       查看当前配置
-  config init       重新执行初始化向导，可传 --api-host/--ak/--sk 非交互配置
+  config init       使用 --api-host/--ak/--sk 写入配置
   config profiles list 查看所有 profile
   config profiles use dev 切换当前 profile
   config lang show  查看当前语言
   config lang set zh 切换为中文日志
   config lang set en 切换为英文日志
-
-交互提示：
-  TAB               自动补全命令和参数
-  Ctrl+C            退出交互模式
-  exit              退出交互模式
 
 详细使用文档：
   ` + detailedGuideURL + `
@@ -104,17 +99,12 @@ Common commands:
   schemas list-trans-objs-by-meta List transfer objects by metadata
   version           Show build version information
   config show       Show current config
-  config init       Re-run the wizard, or pass --api-host/--ak/--sk non-interactively
+  config init       Write config with --api-host/--ak/--sk
   config profiles list List configured profiles
   config profiles use dev Switch the active profile
   config lang show  Show current language
   config lang set zh Switch CLI messages to Chinese
   config lang set en Switch CLI messages to English
-
-REPL tips:
-  TAB               Complete commands and options
-  Ctrl+C            Exit interactive mode
-  exit              Leave interactive mode
 
 Detailed guide:
   ` + detailedGuideURL + `
@@ -444,9 +434,9 @@ config 命令
 config show
   查看当前配置，包括 currentProfile、apiBaseUrl、accessKey 掩码和当前 language。
 
-config init [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]
-  重新进入当前 profile 的初始化向导，更新 API 地址和密钥。
-  也可以传入三要素参数进行非交互式初始化；只要传入其中任意一个参数，三项都必须提供。
+config init --api-host URL --ak ACCESS_KEY --sk SECRET_KEY
+  更新当前 profile 的 API 地址和密钥。
+  必须同时传入 --api-host、--ak 和 --sk。
 
 config profiles list
   查看所有 profile，并标记当前正在使用的环境。
@@ -454,9 +444,9 @@ config profiles list
 config profiles use <name>
   切换当前 profile。
 
-config profiles add <name> [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]
-  新增 profile，并立即进入初始化向导。
-  也可以传入三要素参数进行非交互式添加；只要传入其中任意一个参数，三项都必须提供。
+config profiles add <name> --api-host URL --ak ACCESS_KEY --sk SECRET_KEY
+  使用显式凭据新增 profile。
+  必须同时传入 --api-host、--ak 和 --sk。
 
 config profiles remove <name>
   删除非当前 profile。
@@ -475,9 +465,9 @@ config commands
 config show
   Show current config, including currentProfile, apiBaseUrl, masked accessKey, and current language.
 
-config init [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]
-  Re-run the initialization wizard for the active profile to update API URL and credentials.
-  You can also pass all three credential flags for non-interactive initialization.
+config init --api-host URL --ak ACCESS_KEY --sk SECRET_KEY
+  Update API URL and credentials for the active profile.
+  Requires all three credential flags: --api-host, --ak, and --sk.
 
 config profiles list
   List all profiles and mark the active one.
@@ -485,9 +475,9 @@ config profiles list
 config profiles use <name>
   Switch the active profile.
 
-config profiles add <name> [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]
-  Add a profile and open the initialization wizard immediately.
-  You can also pass all three credential flags for non-interactive profile creation.
+config profiles add <name> --api-host URL --ak ACCESS_KEY --sk SECRET_KEY
+  Add a profile with explicit credentials.
+  Requires all three credential flags: --api-host, --ak, and --sk.
 
 config profiles remove <name>
   Remove a non-active profile.
@@ -511,9 +501,9 @@ config profiles list
 config profiles use <name>
   切换当前 profile。
 
-config profiles add <name> [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]
-  新增 profile，并立即进入初始化向导。
-  也可以传入三要素参数进行非交互式添加；只要传入其中任意一个参数，三项都必须提供。
+config profiles add <name> --api-host URL --ak ACCESS_KEY --sk SECRET_KEY
+  使用显式凭据新增 profile。
+  必须同时传入 --api-host、--ak 和 --sk。
 
 config profiles remove <name>
   删除非当前 profile。
@@ -529,9 +519,9 @@ config profiles list
 config profiles use <name>
   Switch the active profile.
 
-config profiles add <name> [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]
-  Add a profile and open the initialization wizard immediately.
-  You can also pass all three credential flags for non-interactive profile creation.
+config profiles add <name> --api-host URL --ak ACCESS_KEY --sk SECRET_KEY
+  Add a profile with explicit credentials.
+  Requires all three credential flags: --api-host, --ak, and --sk.
 
 config profiles remove <name>
   Remove a non-active profile.
@@ -595,31 +585,31 @@ config lang set <en|zh>
 func (s *Shell) helpCompletion() string {
 	if s.isChinese() {
 		return strings.TrimSpace(`
-TAB 补全（高级）
+Shell 补全（高级）
 
 completion <zsh|bash> [commandName]
-  手动输出 shell TAB 补全脚本。
+  手动输出 shell 补全脚本。
   zsh   生成 zsh 补全脚本
   bash  生成 bash 补全脚本
   commandName 可选，用于指定安装后的命令名。
 
 说明：
-  REPL 模式下如果终端支持行编辑，TAB 会自动补全命令和参数。
+  生成的 shell 补全脚本会调用 cloudcanal __complete 输出候选项。
   安装脚本会默认安装 zsh 和 bash 补全文件，通常不需要手动执行这个命令。
 `)
 	}
 
 	return strings.TrimSpace(`
-TAB completion (advanced)
+Shell completion (advanced)
 
 completion <zsh|bash> [commandName]
-  Print a shell TAB completion script manually.
+  Print a shell completion script manually.
   zsh   Generate the zsh completion script.
   bash  Generate the bash completion script.
   commandName is optional and overrides the installed command name.
 
 Notes:
-  In REPL mode, TAB completes commands and options when the terminal supports line editing.
+  Generated shell completion scripts call ` + "`cloudcanal __complete`" + ` to list candidates.
   The install script installs zsh and bash completion files by default, so you rarely need this command.
 `)
 }

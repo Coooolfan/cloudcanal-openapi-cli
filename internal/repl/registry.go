@@ -144,10 +144,6 @@ var (
 			},
 		},
 		{
-			name:    "clear",
-			aliases: []string{"cls"},
-		},
-		{
 			name: "__complete",
 		},
 	}
@@ -204,7 +200,6 @@ func init() {
 	mustSetCommandRun("lang", (*Shell).handleLang)
 	mustSetCommandRun("version", (*Shell).handleVersion)
 	mustSetCommandRun("completion", (*Shell).handleCompletion)
-	mustSetCommandRun("clear", runClearScreen)
 	mustSetCommandRun("__complete", runHiddenCompletion)
 
 	mustSetSubcommandRun("jobs", "list", (*Shell).runJobsList)
@@ -272,11 +267,6 @@ func mustSetCommandRunPath(path []string, run commandRunFunc) {
 		panic("command not found: " + strings.Join(path, " "))
 	}
 	spec.run = run
-}
-
-func runClearScreen(shell *Shell, _ []string) error {
-	shell.io.ClearScreen()
-	return nil
 }
 
 func runHiddenCompletion(shell *Shell, tokens []string) error {

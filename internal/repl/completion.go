@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 )
 
 type flagSpec struct {
@@ -14,10 +12,6 @@ type flagSpec struct {
 }
 
 const CompletionEnvVar = "CLOUDCANAL_INTERNAL_COMPLETE"
-
-var (
-	visibleReplOnlyCommands = []string{"exit"}
-)
 
 func RenderCompletionScript(args []string) (string, error) {
 	if len(args) == 0 || len(args) > 2 {
@@ -39,20 +33,9 @@ func RenderCompletionScript(args []string) (string, error) {
 	}
 }
 
-func CompletionCandidates(args []string, replMode bool) []string {
+func CompletionCandidates(args []string) []string {
 	context, prefix := completionContextFromArgs(args)
-	return completeContext(context, prefix, replMode)
-}
-
-func (s *Shell) completeLine(line string) []string {
-	state := parseCompletionLine(line)
-	candidates := completeContext(state.context, state.prefix, true)
-	base := line[:state.tokenStart]
-	results := make([]string, 0, len(candidates))
-	for _, candidate := range candidates {
-		results = append(results, base+candidate)
-	}
-	return results
+	return completeContext(context, prefix)
 }
 
 func (s *Shell) handleCompletion(tokens []string) error {
@@ -87,20 +70,17 @@ func (s *Shell) runCompletionShell(tokens []string, shellName string) error {
 }
 
 func (s *Shell) printHiddenCompletions(args []string) {
-	for _, candidate := range CompletionCandidates(args, false) {
+	for _, candidate := range CompletionCandidates(args) {
 		s.io.Println(candidate)
 	}
 }
 
-func completeContext(context []string, prefix string, replMode bool) []string {
+func completeContext(context []string, prefix string) []string {
 	if len(context) == 0 {
 		if name, valuePrefix, ok := splitInlineFlag(prefix); ok && name == "--output" {
 			return prependInlineFlag(name, matchCandidates(outputValues, valuePrefix))
 		}
 		candidates := append([]string{}, visibleTopLevelCommands()...)
-		if replMode {
-			candidates = append(candidates, visibleReplOnlyCommands...)
-		}
 		if prefix == "" || strings.HasPrefix(prefix, "--") {
 			candidates = append(candidates, "--help", "--output", "--version")
 		}
@@ -250,71 +230,6 @@ func completionContextFromArgs(args []string) ([]string, string) {
 	}
 	context := append([]string(nil), args[:len(args)-1]...)
 	return context, args[len(args)-1]
-}
-
-type completionState struct {
-	context    []string
-	prefix     string
-	tokenStart int
-}
-
-func parseCompletionLine(line string) completionState {
-	var (
-		context    []string
-		current    strings.Builder
-		quote      rune
-		escaped    bool
-		tokenStart = -1
-	)
-
-	for index, r := range line {
-		switch {
-		case escaped:
-			if tokenStart < 0 {
-				tokenStart = index
-			}
-			current.WriteRune(r)
-			escaped = false
-		case r == '\\':
-			escaped = true
-		case quote != 0:
-			if r == quote {
-				quote = 0
-				continue
-			}
-			current.WriteRune(r)
-		case r == '"' || r == '\'':
-			if tokenStart < 0 {
-				tokenStart = index + utf8.RuneLen(r)
-			}
-			quote = r
-		case unicode.IsSpace(r):
-			if tokenStart >= 0 {
-				context = append(context, current.String())
-				current.Reset()
-				tokenStart = -1
-			}
-		default:
-			if tokenStart < 0 {
-				tokenStart = index
-			}
-			current.WriteRune(r)
-		}
-	}
-
-	if tokenStart < 0 {
-		return completionState{
-			context:    context,
-			prefix:     "",
-			tokenStart: len(line),
-		}
-	}
-
-	return completionState{
-		context:    context,
-		prefix:     current.String(),
-		tokenStart: tokenStart,
-	}
 }
 
 func renderZshCompletionScript(commandName string) string {

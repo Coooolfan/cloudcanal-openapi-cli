@@ -7,7 +7,6 @@ import (
 	"github.com/ClouGence/cloudcanal-openapi-cli/internal/console"
 	"github.com/ClouGence/cloudcanal-openapi-cli/internal/i18n"
 	"github.com/ClouGence/cloudcanal-openapi-cli/internal/util"
-	"io"
 	"strconv"
 	"strings"
 )
@@ -20,11 +19,7 @@ type Shell struct {
 
 func NewShell(io console.IO, runtime app.RuntimeContext) *Shell {
 	_ = i18n.SetLanguage(runtime.Language())
-	shell := &Shell{io: io, runtime: runtime, outputFormat: outputText}
-	if completable, ok := io.(console.TabCompletable); ok {
-		completable.SetCompleter(shell.completeLine)
-	}
-	return shell
+	return &Shell{io: io, runtime: runtime, outputFormat: outputText}
 }
 
 func (s *Shell) ExecuteArgs(args []string) error {
@@ -32,36 +27,6 @@ func (s *Shell) ExecuteArgs(args []string) error {
 		return nil
 	}
 	return s.handleTokens(args)
-}
-
-func (s *Shell) Run() error {
-	s.io.Println(i18n.T("common.typeHelp"))
-	for {
-		line, err := s.io.ReadLine(s.prompt())
-		if err != nil {
-			if err == io.EOF {
-				s.io.Println("")
-				return nil
-			}
-			if console.IsPromptAborted(err) {
-				s.io.Println("")
-				return nil
-			}
-			return err
-		}
-
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		if strings.EqualFold(line, "exit") || strings.EqualFold(line, "quit") {
-			return nil
-		}
-
-		if err := s.handle(line); err != nil {
-			s.PrintError(err)
-		}
-	}
 }
 
 func (s *Shell) handle(commandLine string) error {
@@ -145,16 +110,12 @@ func (s *Shell) runConfigInit(tokens []string) error {
 	if err != nil {
 		return err
 	}
-	if !nonInteractive && len(tokens) != 2 {
+	if !nonInteractive {
 		s.io.Println(s.usageConfigInit())
 		return nil
 	}
 	var updated bool
-	if nonInteractive {
-		updated, err = s.runtime.ReinitializeWithConfig(cfg)
-	} else {
-		updated, err = s.runtime.Reinitialize(s.io)
-	}
+	updated, err = s.runtime.ReinitializeWithConfig(cfg)
 	if err != nil {
 		return err
 	}
@@ -257,16 +218,12 @@ func (s *Shell) runProfilesAdd(tokens []string) error {
 	if err != nil {
 		return err
 	}
-	if !nonInteractive && len(tokens) != 4 {
+	if !nonInteractive {
 		s.io.Println(s.usageConfigProfiles())
 		return nil
 	}
 	var added bool
-	if nonInteractive {
-		added, err = s.runtime.AddProfileWithConfig(name, cfg)
-	} else {
-		added, err = s.runtime.AddProfile(name, s.io)
-	}
+	added, err = s.runtime.AddProfileWithConfig(name, cfg)
 	if err != nil {
 		return err
 	}
@@ -366,12 +323,4 @@ func languageValueIndex(tokens []string) int {
 		return 3
 	}
 	return 2
-}
-
-func (s *Shell) prompt() string {
-	currentProfile := s.runtime.CurrentProfile()
-	if strings.TrimSpace(currentProfile) == "" {
-		return "cloudcanal> "
-	}
-	return "cloudcanal[" + currentProfile + "]> "
 }

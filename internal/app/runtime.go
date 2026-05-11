@@ -5,7 +5,6 @@ import (
 
 	"github.com/ClouGence/cloudcanal-openapi-cli/internal/cluster"
 	"github.com/ClouGence/cloudcanal-openapi-cli/internal/config"
-	"github.com/ClouGence/cloudcanal-openapi-cli/internal/console"
 	"github.com/ClouGence/cloudcanal-openapi-cli/internal/consolejob"
 	"github.com/ClouGence/cloudcanal-openapi-cli/internal/datajob"
 	"github.com/ClouGence/cloudcanal-openapi-cli/internal/datasource"
@@ -28,9 +27,7 @@ type RuntimeContext interface {
 	ConsoleJobs() consolejob.Operations
 	JobConfigs() jobconfig.Operations
 	Schemas() ccschema.Operations
-	Reinitialize(io console.IO) (bool, error)
 	ReinitializeWithConfig(cfg config.AppConfig) (bool, error)
-	AddProfile(name string, io console.IO) (bool, error)
 	AddProfileWithConfig(name string, cfg config.AppConfig) (bool, error)
 	UseProfile(name string) error
 	RemoveProfile(name string) error
@@ -55,25 +52,19 @@ func NewRuntime(configService *config.Service) *Runtime {
 	return &Runtime{configService: configService}
 }
 
-func (r *Runtime) InitializeIfNeeded(io console.IO) (bool, error) {
+func (r *Runtime) InitializeIfNeeded() error {
 	if !r.configService.Exists() {
-		return r.Reinitialize(io)
+		return errors.New(i18n.T("config.noProfilesConfigured"))
 	}
 
 	state, err := r.configService.Load()
 	if err != nil {
-		if errors.Is(err, config.ErrLegacyFormat) {
-			io.Println(i18n.T("runtime.legacyConfig"))
-		} else {
-			io.Println(i18n.T("runtime.invalidConfig", err.Error()))
-		}
-		return r.Reinitialize(io)
+		return err
 	}
 	if err := r.activateState(state); err != nil {
-		io.Println(i18n.T("runtime.invalidConfig", err.Error()))
-		return r.Reinitialize(io)
+		return err
 	}
-	return true, nil
+	return nil
 }
 
 func (r *Runtime) InitializeIfConfigured() error {
@@ -85,46 +76,6 @@ func (r *Runtime) InitializeIfConfigured() error {
 		return nil
 	}
 	return r.activateState(state)
-}
-
-func (r *Runtime) Reinitialize(io console.IO) (bool, error) {
-	state := r.state
-	if state.Language == "" {
-		state.Language = r.Language()
-	}
-	_ = i18n.SetLanguage(state.NormalizedLanguage())
-
-	profileName := r.currentProfile
-	if profileName == "" {
-		profileName = config.DefaultProfileName
-	}
-
-	initial := r.config
-	if existing, ok := state.Profiles[profileName]; ok {
-		initial = existing
-	}
-
-	wizard := config.NewWizard(io, r.validateConfig, profileName, initial)
-	cfg, err := wizard.Run()
-	if err != nil {
-		return false, err
-	}
-	if cfg == nil {
-		io.Println(i18n.T("runtime.initCancelled"))
-		return false, nil
-	}
-
-	state.Language = state.NormalizedLanguage()
-	if state.Profiles == nil {
-		state.Profiles = make(map[string]config.AppConfig)
-	}
-	state.CurrentProfile = profileName
-	state.Profiles[profileName] = *cfg
-	if err := r.saveAndActivate(state); err != nil {
-		return false, err
-	}
-	io.Println(i18n.T("wizard.savedTo", r.configService.Path()))
-	return true, nil
 }
 
 func (r *Runtime) ReinitializeWithConfig(cfg config.AppConfig) (bool, error) {
@@ -152,49 +103,6 @@ func (r *Runtime) ReinitializeWithConfig(cfg config.AppConfig) (bool, error) {
 	if err := r.saveAndActivate(state); err != nil {
 		return false, err
 	}
-	return true, nil
-}
-
-func (r *Runtime) AddProfile(name string, io console.IO) (bool, error) {
-	if err := config.ValidateProfileName(name); err != nil {
-		return false, err
-	}
-
-	state := r.state
-	profileName := config.NormalizeProfileName(name)
-	if state.Profiles == nil {
-		state.Profiles = make(map[string]config.AppConfig)
-	}
-	if _, exists := state.Profiles[profileName]; exists {
-		return false, errors.New(i18n.T("config.profileExists", profileName))
-	}
-
-	_ = i18n.SetLanguage(state.NormalizedLanguage())
-	wizard := config.NewWizard(io, r.validateConfig, profileName, config.AppConfig{})
-	cfg, err := wizard.Run()
-	if err != nil {
-		return false, err
-	}
-	if cfg == nil {
-		io.Println(i18n.T("runtime.initCancelled"))
-		return false, nil
-	}
-
-	state.Profiles[profileName] = *cfg
-	if state.CurrentProfile == "" {
-		state.CurrentProfile = profileName
-	}
-	if err := r.configService.Save(state); err != nil {
-		return false, err
-	}
-	if state.ActiveProfileName() == profileName {
-		if err := r.activateState(state); err != nil {
-			return false, err
-		}
-	} else {
-		r.state = state
-	}
-	io.Println(i18n.T("wizard.savedTo", r.configService.Path()))
 	return true, nil
 }
 

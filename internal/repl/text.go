@@ -276,9 +276,9 @@ func (s *Shell) usageConfigShow() string {
 
 func (s *Shell) usageConfigInit() string {
 	if s.isChinese() {
-		return "用法：config init [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]"
+		return "用法：config init --api-host URL --ak ACCESS_KEY --sk SECRET_KEY"
 	}
-	return "Usage: config init [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]"
+	return "Usage: config init --api-host URL --ak ACCESS_KEY --sk SECRET_KEY"
 }
 
 func (s *Shell) usageConfigLang() string {
@@ -290,9 +290,9 @@ func (s *Shell) usageConfigLang() string {
 
 func (s *Shell) usageConfigProfiles() string {
 	if s.isChinese() {
-		return usageBlock("用法：", "config profiles list", "config profiles use <name>", "config profiles add <name> [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]", "config profiles remove <name>")
+		return usageBlock("用法：", "config profiles list", "config profiles use <name>", "config profiles add <name> --api-host URL --ak ACCESS_KEY --sk SECRET_KEY", "config profiles remove <name>")
 	}
-	return usageBlock("Usage:", "config profiles list", "config profiles use <name>", "config profiles add <name> [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]", "config profiles remove <name>")
+	return usageBlock("Usage:", "config profiles list", "config profiles use <name>", "config profiles add <name> --api-host URL --ak ACCESS_KEY --sk SECRET_KEY", "config profiles remove <name>")
 }
 
 func (s *Shell) usageCompletion() string {

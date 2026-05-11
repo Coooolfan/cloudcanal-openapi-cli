@@ -1,16 +1,10 @@
 # cloudcanal-cli 使用说明
 
-`cloudcanal-cli` 是 CloudCanal OpenAPI 的命令行工具，既支持交互式使用，也支持单次命令执行。
+`cloudcanal-cli` 是 CloudCanal OpenAPI 的非交互式命令行工具，适合脚本、CI 和自动化环境使用。
 
 ## 启动方式
 
-交互模式：
-
-```bash
-cloudcanal
-```
-
-单次命令模式：
+命令模式：
 
 ```bash
 cloudcanal version
@@ -48,8 +42,7 @@ curl -fsSL https://raw.githubusercontent.com/ClouGence/cloudcanal-openapi-cli/ma
 - 不需要本机安装 `Go`
 - 默认会把二进制安装到 `~/.cloudcanal-cli/bin/cloudcanal`
 - 补全文件会安装到 `~/.cloudcanal-cli/completions`
-- 之后会自动完成命令、PATH 和补全安装
-- 交互模式和 shell 都支持 TAB 自动补全，通常不需要手动处理补全脚本
+- 之后会自动完成命令、PATH 和 shell 补全安装
 
 一键卸载：
 
@@ -59,7 +52,7 @@ curl -fsSL https://raw.githubusercontent.com/ClouGence/cloudcanal-openapi-cli/ma
 
 ## 初始化配置
 
-首次启动会进入初始化向导，配置文件默认保存到：
+首次使用前请通过 `config init` 显式传入连接参数。配置文件默认保存到：
 
 ```text
 ~/.cloudcanal-cli/config.json
@@ -149,11 +142,9 @@ cloudcanal config --help
 
 显示当前配置，`accessKey` 会做掩码处理，同时会显示当前 `currentProfile` 和全局 `language`。
 
-`config init [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]`
+`config init --api-host URL --ak ACCESS_KEY --sk SECRET_KEY`
 
-重新执行当前 profile 的初始化向导，更新配置。
-
-如果传入 `--api-host`、`--ak`、`--sk` 三要素，则以非交互方式更新当前 profile。只要传入其中任意一个参数，三项都必须提供；保存前仍会校验连接。
+更新当前 profile 的配置。`--api-host`、`--ak`、`--sk` 三项都必须提供；保存前仍会校验连接。
 
 `config profiles list`
 
@@ -163,11 +154,9 @@ cloudcanal config --help
 
 切换当前 profile。
 
-`config profiles add <name> [--api-host URL --ak ACCESS_KEY --sk SECRET_KEY]`
+`config profiles add <name> --api-host URL --ak ACCESS_KEY --sk SECRET_KEY`
 
-新增 profile，并立即进入初始化向导。
-
-如果传入 `--api-host`、`--ak`、`--sk` 三要素，则以非交互方式新增 profile。只要传入其中任意一个参数，三项都必须提供；保存前仍会校验连接。
+使用显式凭据新增 profile。`--api-host`、`--ak`、`--sk` 三项都必须提供；保存前仍会校验连接。
 
 `config profiles remove <name>`
 
@@ -180,10 +169,6 @@ cloudcanal config --help
 `config lang set <en|zh>`
 
 切换 CLI 文案语言，并持久化到配置文件。
-
-`exit`
-
-退出交互模式。交互模式下也可以直接按 `Ctrl+C` 退出。
 
 ## Jobs
 
@@ -390,7 +375,7 @@ cloudcanal schemas list-trans-objs-by-meta --src-db demo --src-trans-obj orders
 
 - 带空格的参数值请使用引号包裹，例如 `--desc "nightly sync"`
 - 可以在查询类命令后追加 `--output json` 获取机器可读结果
-- 交互模式下如果终端支持行编辑，可以直接使用 `TAB` 补全命令、子命令和常见参数
+- 安装脚本会配置 zsh / bash shell 补全
 - 可以先执行 `cloudcanal help` 查看帮助主题，再执行 `cloudcanal help jobs` 这类子帮助查看参数含义
 - 如果想切换中文或英文文案，可执行 `cloudcanal config lang set zh` 或 `cloudcanal config lang set en`
 - 如果命令执行失败，优先检查 `apiBaseUrl`、`accessKey`、`secretKey` 是否正确

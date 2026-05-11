@@ -59,6 +59,10 @@ func splitCommandLine(line string) ([]string, error) {
 	return tokens, nil
 }
 
+func SplitCommandLine(line string) ([]string, error) {
+	return splitCommandLine(line)
+}
+
 func parseFlagArgs(tokens []string) (map[string]string, error) {
 	options := make(map[string]string, len(tokens))
 	for i := 0; i < len(tokens); i++ {
